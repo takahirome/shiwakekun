@@ -1,6 +1,6 @@
-# Tauri + React + Typescript
+# Tauri + React + TypeScript
 
-このテンプレートは、Tauri、React、Typescript と Vite を使用した開発をスタートするのに役立ちます。
+このテンプレートは、Tauri、React、TypeScript と Vite を使用した開発をスタートするのに役立ちます。
 
 ## プロジェクト概要
 
