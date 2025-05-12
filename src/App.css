@@ -14,8 +14,8 @@
   --error-color: #ef4444;
   --light-bg: #f8fafc;
   --border-color: #e2e8f0;
-  --text-color: #1e293b;
-  --light-text: #64748b;
+  --text-color: #25282e;
+  --light-text: #333942;
   --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --border-radius: 0.5rem;
   --transition-speed: 0.2s;
@@ -24,7 +24,6 @@
   font-size: 16px;
   line-height: 1.5;
   font-weight: 400;
-
   color: var(--text-color);
   background-color: var(--light-bg);
 
@@ -697,7 +696,7 @@ input:focus, select:focus {
   margin-left: 12px;
   font-size: 14px;
   font-weight: 500;
-  color: #e2e8f0;
+  color: #28292b;
 }
 
 .window-controls {
