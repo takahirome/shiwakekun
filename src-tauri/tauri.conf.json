@@ -45,5 +45,31 @@
     "macos": {
       "permissions": ["documents", "desktop", "downloads", "removableVolumes"]
     }
+  },
+  "tauri": {
+    "allowlist": {
+      "fs": {
+        "all": true,
+        "readFile": true,
+        "writeFile": true,
+        "readDir": true,
+        "copyFile": true,
+        "createDir": true,
+        "removeDir": true,
+        "removeFile": true,
+        "renameFile": true,
+        "exists": true
+      },
+      "shell": {
+        "all": false,
+        "execute": true,
+        "sidecar": false,
+        "open": true
+      }
+    },
+    "bundle": {
+      // ... existing code ...
+    },
+    "commands": ["move_file"]
   }
 }
