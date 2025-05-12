@@ -6,10 +6,8 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
-use tauri::Manager;
 use tokio::fs as tokio_fs;
 
 // 処理中断フラグ（グローバル）

@@ -16,8 +16,6 @@ import {
 } from "tauri-plugin-macos-permissions-api";
 import {
   AppShell,
-  Navbar,
-  Header,
   Text,
   Title,
   Button,
@@ -37,14 +35,12 @@ import {
   ActionIcon,
   rem,
   ThemeIcon,
-  Tooltip,
 } from "@mantine/core";
 import {
   IconFileUpload,
   IconFolderOpen,
   IconSettings,
   IconList,
-  IconPermission,
   IconFileImport,
   IconCheck,
   IconX,
@@ -927,16 +923,6 @@ function App() {
       await checkPermissions();
     } catch (error) {
       console.error(`${type}パーミッション要求エラー:`, error);
-    }
-  }
-
-  async function selectDirectory() {
-    try {
-      const selected = await open({ directory: true });
-      return selected as string | null;
-    } catch (error) {
-      console.error("ディレクトリ選択エラー:", error);
-      return null;
     }
   }
 
