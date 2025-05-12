@@ -4,15 +4,17 @@
   "description": "Capability for the main window",
   "windows": ["main"],
   "permissions": [
-    "core:default",
-    "opener:default",
+    "path:default",
+    "event:default",
+    "window:default",
+    "app:default",
+    "image:default",
+    "resources:default",
+    "menu:default",
+    "tray:default",
+    "shell:allow-open",
+    "fs:default",
     "dialog:default",
-    "macos-permissions:default",
-    "core:window:allow-hide",
-    "core:window:allow-minimize",
-    "core:window:allow-maximize",
-    "core:window:allow-toggle-maximize",
-    "core:window:allow-unmaximize",
-    "core:window:allow-start-dragging"
+    "dialog:allow-open"
   ]
 }

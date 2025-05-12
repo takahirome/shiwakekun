@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { platform } from "@tauri-apps/api/os";
 import "./App.css";
 import {
   AppShell,
@@ -19,7 +21,7 @@ import {
 } from "@tabler/icons-react";
 
 // 型定義のインポート
-import { TabType, OrganizeProgress } from "./types";
+import { TabType, OrganizeProgress, Config } from "./types";
 
 // フックのインポート
 import { useConfig } from "./hooks/useConfig";
@@ -129,9 +131,13 @@ function App() {
   // 出力フォルダの選択処理
   const handleSelectOutputFolder = async () => {
     try {
-      const folder = await useConfig().selectOutputFolder();
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const folder = await open({ directory: true });
+
       if (folder) {
-        setSelectedOutputFolder(folder);
+        // 選択されたフォルダが配列の場合は最初の要素を使用
+        const selectedFolder = Array.isArray(folder) ? folder[0] : folder;
+        setSelectedOutputFolder(selectedFolder);
       }
     } catch (error) {
       console.error("出力フォルダ選択エラー:", error);

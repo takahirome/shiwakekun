@@ -84,6 +84,25 @@ export function useFiles() {
     }
   }
 
+  async function changeFilePermissions(filePath: string, writable: boolean = true) {
+    try {
+      // Unix系のパーミッション値（8進数）
+      // 0o644: 自分は読み書き可能、グループとその他は読み取りのみ
+      // 0o444: 全員が読み取りのみ
+      const mode = writable ? 0o644 : 0o444;
+      
+      await invoke("change_file_permissions", {
+        filePath,
+        mode,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("パーミッション変更エラー:", error);
+      return false;
+    }
+  }
+
   return {
     selectedFiles,
     setSelectedFiles,
@@ -101,5 +120,6 @@ export function useFiles() {
     loadFilesFromInputFolder,
     organizeFiles,
     cancelProcessing,
+    changeFilePermissions,
   };
 } 

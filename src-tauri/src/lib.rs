@@ -1,12 +1,14 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
-use std::sync::atomic::{AtomicBool, Ordering};
-use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 use tokio::fs as tokio_fs;
 
@@ -28,12 +30,58 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         let mut categories = HashMap::new();
-        categories.insert("Images".to_string(), vec![".jpg".to_string(), ".jpeg".to_string(), ".png".to_string(), ".gif".to_string(), ".bmp".to_string()]);
-        categories.insert("Documents".to_string(), vec![".pdf".to_string(), ".doc".to_string(), ".docx".to_string(), ".txt".to_string(), ".xlsx".to_string(), ".pptx".to_string()]);
-        categories.insert("Videos".to_string(), vec![".mp4".to_string(), ".avi".to_string(), ".mov".to_string(), ".wmv".to_string(), ".mkv".to_string()]);
-        categories.insert("Audio".to_string(), vec![".mp3".to_string(), ".wav".to_string(), ".ogg".to_string(), ".flac".to_string(), ".aac".to_string()]);
-        categories.insert("Archives".to_string(), vec![".zip".to_string(), ".rar".to_string(), ".7z".to_string(), ".tar".to_string(), ".gz".to_string()]);
-        
+        categories.insert(
+            "Images".to_string(),
+            vec![
+                ".jpg".to_string(),
+                ".jpeg".to_string(),
+                ".png".to_string(),
+                ".gif".to_string(),
+                ".bmp".to_string(),
+            ],
+        );
+        categories.insert(
+            "Documents".to_string(),
+            vec![
+                ".pdf".to_string(),
+                ".doc".to_string(),
+                ".docx".to_string(),
+                ".txt".to_string(),
+                ".xlsx".to_string(),
+                ".pptx".to_string(),
+            ],
+        );
+        categories.insert(
+            "Videos".to_string(),
+            vec![
+                ".mp4".to_string(),
+                ".avi".to_string(),
+                ".mov".to_string(),
+                ".wmv".to_string(),
+                ".mkv".to_string(),
+            ],
+        );
+        categories.insert(
+            "Audio".to_string(),
+            vec![
+                ".mp3".to_string(),
+                ".wav".to_string(),
+                ".ogg".to_string(),
+                ".flac".to_string(),
+                ".aac".to_string(),
+            ],
+        );
+        categories.insert(
+            "Archives".to_string(),
+            vec![
+                ".zip".to_string(),
+                ".rar".to_string(),
+                ".7z".to_string(),
+                ".tar".to_string(),
+                ".gz".to_string(),
+            ],
+        );
+
         Config {
             categories,
             output_folders: vec![],
@@ -64,18 +112,33 @@ fn load_config() -> Result<Config, String> {
 
     let mut file = map_err(File::open(&config_path), "設定ファイルを開けません")?;
     let mut contents = String::new();
-    map_err(file.read_to_string(&mut contents), "設定ファイルを読み込めません")?;
+    map_err(
+        file.read_to_string(&mut contents),
+        "設定ファイルを読み込めません",
+    )?;
 
-    map_err(serde_json::from_str(&contents), "設定ファイルの解析に失敗しました")
+    map_err(
+        serde_json::from_str(&contents),
+        "設定ファイルの解析に失敗しました",
+    )
 }
 
 #[tauri::command]
 fn save_config(config: Config) -> Result<(), String> {
     let config_path = get_config_path();
-    let serialized = map_err(serde_json::to_string_pretty(&config), "設定のシリアル化に失敗しました")?;
-    
-    let mut file = map_err(File::create(&config_path), "設定ファイルの作成に失敗しました")?;
-    map_err(file.write_all(serialized.as_bytes()), "設定ファイルの書き込みに失敗しました")
+    let serialized = map_err(
+        serde_json::to_string_pretty(&config),
+        "設定のシリアル化に失敗しました",
+    )?;
+
+    let mut file = map_err(
+        File::create(&config_path),
+        "設定ファイルの作成に失敗しました",
+    )?;
+    map_err(
+        file.write_all(serialized.as_bytes()),
+        "設定ファイルの書き込みに失敗しました",
+    )
 }
 
 fn get_category(ext: &str, categories: &HashMap<String, Vec<String>>) -> String {
@@ -107,14 +170,90 @@ async fn move_file_async(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
                 match tokio_fs::remove_file(src).await {
                     Ok(_) => return Ok(()),
                     Err(e) => {
+                        // パーミッションエラーの場合、書き込み権限を追加して再試行
+                        if e.kind() == std::io::ErrorKind::PermissionDenied {
+                            #[cfg(unix)]
+                            {
+                                // Unix系システムでパーミッションを変更
+                                if let Ok(metadata) = fs::metadata(src) {
+                                    let mut permissions = metadata.permissions();
+                                    permissions.set_mode(0o644); // 読み書き権限を設定
+                                    if fs::set_permissions(src, permissions).is_ok() {
+                                        // パーミッション変更成功後に再試行
+                                        if let Ok(_) = tokio_fs::remove_file(src).await {
+                                            return Ok(());
+                                        }
+                                    }
+                                }
+                            }
+
+                            #[cfg(not(unix))]
+                            {
+                                // Windows向けのパーミッション変更
+                                if let Ok(metadata) = fs::metadata(src) {
+                                    let mut permissions = metadata.permissions();
+                                    permissions.set_readonly(false);
+                                    if fs::set_permissions(src, permissions).is_ok() {
+                                        // パーミッション変更成功後に再試行
+                                        if let Ok(_) = tokio_fs::remove_file(src).await {
+                                            return Ok(());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         last_error = Some(std::io::Error::new(
                             std::io::ErrorKind::Other,
-                            format!("削除エラー: {}", e)
+                            format!("削除エラー: {}", e),
                         ));
                     }
                 }
-            },
-            Err(_e) => {
+            }
+            Err(e) => {
+                // パーミッションエラーの場合、書き込み権限を追加して再試行
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    #[cfg(unix)]
+                    {
+                        // Unix系システムでパーミッションを変更
+                        if let Ok(metadata) = fs::metadata(src) {
+                            let mut permissions = metadata.permissions();
+                            permissions.set_mode(0o644); // 読み書き権限を設定
+                            if fs::set_permissions(src, permissions).is_ok() {
+                                // パーミッション変更成功後に再試行
+                                match tokio_fs::copy(src, dst).await {
+                                    Ok(_) => {
+                                        if tokio_fs::remove_file(src).await.is_ok() {
+                                            return Ok(());
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+
+                    #[cfg(not(unix))]
+                    {
+                        // Windows向けのパーミッション変更
+                        if let Ok(metadata) = fs::metadata(src) {
+                            let mut permissions = metadata.permissions();
+                            permissions.set_readonly(false);
+                            if fs::set_permissions(src, permissions).is_ok() {
+                                // パーミッション変更成功後に再試行
+                                match tokio_fs::copy(src, dst).await {
+                                    Ok(_) => {
+                                        if tokio_fs::remove_file(src).await.is_ok() {
+                                            return Ok(());
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 代替方法としてstandard fsライブラリを試す
                 match fs::rename(src, dst) {
                     Ok(_) => return Ok(()),
@@ -128,18 +267,23 @@ async fn move_file_async(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
                                         // macOSでの権限エラー (os error 13) の場合、コマンドラインツールを試す
                                         #[cfg(target_os = "macos")]
                                         {
-                                            if e3.kind() == std::io::ErrorKind::PermissionDenied || 
-                                               format!("{}", e3).contains("Permission denied") {
+                                            if e3.kind() == std::io::ErrorKind::PermissionDenied
+                                                || format!("{}", e3).contains("Permission denied")
+                                            {
                                                 // mvコマンドを実行してファイルを移動
-                                                if let (Some(src_str), Some(dst_str)) = (src.to_str(), dst.to_str()) {
+                                                if let (Some(src_str), Some(dst_str)) =
+                                                    (src.to_str(), dst.to_str())
+                                                {
                                                     let output = std::process::Command::new("mv")
                                                         .arg("-f")
                                                         .arg(src_str)
                                                         .arg(dst_str)
                                                         .output();
-                                                    
+
                                                     match output {
-                                                        Ok(output) if output.status.success() => return Ok(()),
+                                                        Ok(output) if output.status.success() => {
+                                                            return Ok(())
+                                                        }
                                                         _ => {}
                                                     }
                                                 }
@@ -148,7 +292,7 @@ async fn move_file_async(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
                                         last_error = Some(e3);
                                     }
                                 }
-                            },
+                            }
                             Err(e3) => {
                                 last_error = Some(e3);
                             }
@@ -160,10 +304,9 @@ async fn move_file_async(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
     }
 
     // すべての方法が失敗した場合は最後のエラーを返す
-    Err(last_error.unwrap_or_else(|| std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "ファイル移動に失敗しました"
-    )))
+    Err(last_error.unwrap_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::Other, "ファイル移動に失敗しました")
+    }))
 }
 
 // 互換性のために同期バージョンも維持
@@ -173,14 +316,20 @@ fn move_file(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
 }
 
 #[tauri::command]
-fn organize_files(files: Vec<String>, output_folder: String, config: Config) -> Result<Vec<FileResult>, String> {
+fn organize_files(
+    files: Vec<String>,
+    output_folder: String,
+    config: Config,
+) -> Result<Vec<FileResult>, String> {
     let output_path = Path::new(&output_folder);
     if !output_path.exists() {
         fs::create_dir_all(output_path).map_err(|e| e.to_string())?;
     }
 
     // カテゴリ名のリスト
-    let category_names: Vec<String> = config.categories.keys()
+    let category_names: Vec<String> = config
+        .categories
+        .keys()
         .cloned()
         .chain(std::iter::once("Others".to_string())) // デフォルトカテゴリも追加
         .collect();
@@ -197,7 +346,9 @@ fn organize_files(files: Vec<String>, output_folder: String, config: Config) -> 
                     if let Some(std::path::Component::Normal(component)) = first_component {
                         if let Some(component_str) = component.to_str() {
                             // カテゴリフォルダ内ならスキップ
-                            return !category_names.iter().any(|category| category == component_str);
+                            return !category_names
+                                .iter()
+                                .any(|category| category == component_str);
                         }
                     }
                 }
@@ -220,33 +371,40 @@ fn organize_files(files: Vec<String>, output_folder: String, config: Config) -> 
         }
 
         // カテゴリを取得
-        let ext = path.extension()
+        let ext = path
+            .extension()
             .and_then(|e| e.to_str())
             .map(|e| format!(".{}", e))
             .unwrap_or_else(|| String::new());
-        
+
         let category = get_category(&ext, &config.categories);
-        
+
         // カテゴリフォルダを作成
         let category_dir = output_path.join(&category);
         if !category_dir.exists() {
             fs::create_dir_all(&category_dir).map_err(|e| e.to_string())?;
         }
-        
+
         // 移動先のパスを作成
-        let file_name = path.file_name().and_then(|n| n.to_str()).ok_or("無効なファイル名")?;
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or("無効なファイル名")?;
         let mut dest_path = category_dir.join(file_name);
-        
+
         // 既に同名ファイルがある場合は連番を付与
         let mut counter = 1;
         while dest_path.exists() {
-            let stem = path.file_stem().and_then(|s| s.to_str()).ok_or("無効なファイル名")?;
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .ok_or("無効なファイル名")?;
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let new_name = format!("{}_{}.{}", stem, counter, ext);
             dest_path = category_dir.join(new_name);
             counter += 1;
         }
-        
+
         // ファイルを移動
         match move_file(path, &dest_path) {
             Ok(_) => {
@@ -255,7 +413,7 @@ fn organize_files(files: Vec<String>, output_folder: String, config: Config) -> 
                     success: true,
                     message: format!("{}に移動", category),
                 });
-            },
+            }
             Err(e) => {
                 results.push(FileResult {
                     file_path: file_path.clone(),
@@ -265,7 +423,7 @@ fn organize_files(files: Vec<String>, output_folder: String, config: Config) -> 
             }
         }
     }
-    
+
     Ok(results)
 }
 
@@ -300,38 +458,51 @@ fn load_files_from_input_folder(config: Config, recursive: bool) -> Result<Vec<S
     }
 
     if !path.is_dir() {
-        return Err(format!("指定されたパスはディレクトリではありません: {}", input_folder));
+        return Err(format!(
+            "指定されたパスはディレクトリではありません: {}",
+            input_folder
+        ));
     }
 
     let mut files = Vec::new();
-    
+
     // 出力先フォルダと、カテゴリ名のリストを収集
-    let output_folders: Vec<PathBuf> = config.output_folders.iter()
+    let output_folders: Vec<PathBuf> = config
+        .output_folders
+        .iter()
         .map(|f| Path::new(f).to_path_buf())
         .collect();
-    
+
     // カテゴリ名のリスト
-    let category_names: Vec<String> = config.categories.keys()
+    let category_names: Vec<String> = config
+        .categories
+        .keys()
         .cloned()
         .chain(std::iter::once("Others".to_string())) // デフォルトカテゴリも追加
         .collect();
-    
-    collect_files(&path, &mut files, recursive, &output_folders, &category_names)?;
+
+    collect_files(
+        &path,
+        &mut files,
+        recursive,
+        &output_folders,
+        &category_names,
+    )?;
 
     Ok(files)
 }
 
 fn collect_files(
-    dir: &Path, 
-    files: &mut Vec<String>, 
-    recursive: bool, 
+    dir: &Path,
+    files: &mut Vec<String>,
+    recursive: bool,
     output_folders: &[PathBuf],
-    category_names: &[String]
+    category_names: &[String],
 ) -> Result<(), String> {
     for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
-        
+
         // 出力先フォルダの下位階層にあるカテゴリフォルダ内のファイルを除外
         let should_exclude = output_folders.iter().any(|output_folder| {
             if path.starts_with(output_folder) {
@@ -340,18 +511,20 @@ fn collect_files(
                     let first_component = rel_path.components().next();
                     if let Some(std::path::Component::Normal(component)) = first_component {
                         if let Some(component_str) = component.to_str() {
-                            return category_names.iter().any(|category| category == component_str);
+                            return category_names
+                                .iter()
+                                .any(|category| category == component_str);
                         }
                     }
                 }
             }
             false
         });
-        
+
         if should_exclude {
             continue;
         }
-        
+
         if path.is_file() {
             if let Some(path_str) = path.to_str() {
                 files.push(path_str.to_string());
@@ -360,7 +533,7 @@ fn collect_files(
             collect_files(&path, files, recursive, output_folders, category_names)?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -385,21 +558,23 @@ fn cancel_processing() -> Result<(), String> {
 
 #[tauri::command]
 fn organize_files_async(
-    files: Vec<String>, 
-    output_folder: String, 
+    files: Vec<String>,
+    output_folder: String,
     config: Config,
     window: tauri::Window,
 ) -> Result<Vec<FileResult>, String> {
     // 開始時に中断フラグをリセット
     CANCEL_FLAG.store(false, Ordering::SeqCst);
-    
+
     let output_path = Path::new(&output_folder);
     if !output_path.exists() {
         fs::create_dir_all(output_path).map_err(|e| e.to_string())?;
     }
 
     // カテゴリ名のリスト
-    let category_names: Vec<String> = config.categories.keys()
+    let category_names: Vec<String> = config
+        .categories
+        .keys()
         .cloned()
         .chain(std::iter::once("Others".to_string())) // デフォルトカテゴリも追加
         .collect();
@@ -416,7 +591,9 @@ fn organize_files_async(
                     if let Some(std::path::Component::Normal(component)) = first_component {
                         if let Some(component_str) = component.to_str() {
                             // カテゴリフォルダ内ならスキップ
-                            return !category_names.iter().any(|category| category == component_str);
+                            return !category_names
+                                .iter()
+                                .any(|category| category == component_str);
                         }
                     }
                 }
@@ -426,56 +603,65 @@ fn organize_files_async(
         .collect();
 
     let total_files = filtered_files.len();
-    
+
     // 処理を別スレッドで実行
     let window_clone = window.clone();
     let config_clone = config.clone();
     let output_folder_clone = output_folder.clone();
-    
+
     // 初期化メッセージを送信
-    let _ = window.emit("organize-progress", OrganizeProgress {
-        total_files,
-        processed_files: 0,
-        current_result: None,
-        finished: false,
-        batch_progress: true,
-    });
-    
+    let _ = window.emit(
+        "organize-progress",
+        OrganizeProgress {
+            total_files,
+            processed_files: 0,
+            current_result: None,
+            finished: false,
+            batch_progress: true,
+        },
+    );
+
     // 新しいスレッドで処理を実行
     std::thread::spawn(move || {
         let mut results = Vec::new();
         let mut processed = 0;
         let output_path = Path::new(&output_folder_clone);
-        
+
         // バッチサイズごとに処理
         for batch in filtered_files.chunks(BATCH_SIZE) {
             // 中断フラグをチェック
             if CANCEL_FLAG.load(Ordering::SeqCst) {
                 // 処理中断を通知
-                let _ = window_clone.emit("organize-progress", OrganizeProgress {
-                    total_files,
-                    processed_files: processed,
-                    current_result: None,
-                    finished: true, // 処理完了フラグを立てる
-                    batch_progress: true,
-                });
-                return;
-            }
-            
-            for file_path in batch {
-                // 各ファイル処理前にも中断フラグをチェック
-                if CANCEL_FLAG.load(Ordering::SeqCst) {
-                    // 処理中断を通知
-                    let _ = window_clone.emit("organize-progress", OrganizeProgress {
+                let _ = window_clone.emit(
+                    "organize-progress",
+                    OrganizeProgress {
                         total_files,
                         processed_files: processed,
                         current_result: None,
                         finished: true, // 処理完了フラグを立てる
                         batch_progress: true,
-                    });
+                    },
+                );
+                return;
+            }
+
+            for file_path in batch {
+                // 各ファイル処理前にも中断フラグをチェック
+                if CANCEL_FLAG.load(Ordering::SeqCst) {
+                    // 処理中断を通知
+                    let _ = window_clone.emit(
+                        "organize-progress",
+                        OrganizeProgress {
+                            total_files,
+                            processed_files: processed,
+                            current_result: None,
+                            finished: true, // 処理完了フラグを立てる
+                            batch_progress: true,
+                        },
+                    );
                     return;
                 }
-                
+
                 let path = Path::new(file_path);
                 let result = if !path.exists() {
                     FileResult {
@@ -485,18 +671,19 @@ fn organize_files_async(
                     }
                 } else {
                     // カテゴリを取得
-                    let ext = path.extension()
+                    let ext = path
+                        .extension()
                         .and_then(|e| e.to_str())
                         .map(|e| format!(".{}", e))
                         .unwrap_or_else(|| String::new());
-                    
+
                     let category = get_category(&ext, &config_clone.categories);
-                    
+
                     // カテゴリフォルダを作成
                     let category_dir = output_path.join(&category);
                     if !category_dir.exists() {
                         match fs::create_dir_all(&category_dir) {
-                            Ok(_) => {},
+                            Ok(_) => {}
                             Err(e) => {
                                 let result = FileResult {
                                     file_path: file_path.clone(),
@@ -505,20 +692,23 @@ fn organize_files_async(
                                 };
                                 results.push(result.clone());
                                 processed += 1;
-                                
-                                let _ = window_clone.emit("organize-progress", OrganizeProgress {
-                                    total_files,
-                                    processed_files: processed,
-                                    current_result: Some(result),
-                                    finished: processed == total_files,
-                                    batch_progress: true,
-                                });
-                                
+
+                                let _ = window_clone.emit(
+                                    "organize-progress",
+                                    OrganizeProgress {
+                                        total_files,
+                                        processed_files: processed,
+                                        current_result: Some(result),
+                                        finished: processed == total_files,
+                                        batch_progress: true,
+                                    },
+                                );
+
                                 continue;
                             }
                         }
                     }
-                    
+
                     // 移動先のパスを作成
                     let file_name = match path.file_name().and_then(|n| n.to_str()) {
                         Some(name) => name,
@@ -530,21 +720,24 @@ fn organize_files_async(
                             };
                             results.push(result.clone());
                             processed += 1;
-                            
-                            let _ = window_clone.emit("organize-progress", OrganizeProgress {
-                                total_files,
-                                processed_files: processed,
-                                current_result: Some(result),
-                                finished: processed == total_files,
-                                batch_progress: true,
-                            });
-                            
+
+                            let _ = window_clone.emit(
+                                "organize-progress",
+                                OrganizeProgress {
+                                    total_files,
+                                    processed_files: processed,
+                                    current_result: Some(result),
+                                    finished: processed == total_files,
+                                    batch_progress: true,
+                                },
+                            );
+
                             continue;
                         }
                     };
-                    
+
                     let mut dest_path = category_dir.join(file_name);
-                    
+
                     // 既に同名ファイルがある場合は連番を付与
                     let mut counter = 1;
                     while dest_path.exists() {
@@ -558,25 +751,28 @@ fn organize_files_async(
                                 };
                                 results.push(result.clone());
                                 processed += 1;
-                                
-                                let _ = window_clone.emit("organize-progress", OrganizeProgress {
-                                    total_files,
-                                    processed_files: processed,
-                                    current_result: Some(result),
-                                    finished: processed == total_files,
-                                    batch_progress: true,
-                                });
-                                
+
+                                let _ = window_clone.emit(
+                                    "organize-progress",
+                                    OrganizeProgress {
+                                        total_files,
+                                        processed_files: processed,
+                                        current_result: Some(result),
+                                        finished: processed == total_files,
+                                        batch_progress: true,
+                                    },
+                                );
+
                                 continue;
                             }
                         };
-                        
+
                         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
                         let new_name = format!("{}_{}.{}", stem, counter, ext);
                         dest_path = category_dir.join(new_name);
                         counter += 1;
                     }
-                    
+
                     // ファイルを移動
                     match move_file(path, &dest_path) {
                         Ok(_) => FileResult {
@@ -588,7 +784,7 @@ fn organize_files_async(
                             file_path: file_path.clone(),
                             success: false,
                             message: format!("移動エラー: {}", e),
-                        }
+                        },
                     }
                 };
 
@@ -596,29 +792,35 @@ fn organize_files_async(
                 processed += 1;
 
                 // 進捗を通知
-                let _ = window_clone.emit("organize-progress", OrganizeProgress {
-                    total_files,
-                    processed_files: processed,
-                    current_result: Some(result),
-                    finished: processed == total_files,
-                    batch_progress: true,
-                });
+                let _ = window_clone.emit(
+                    "organize-progress",
+                    OrganizeProgress {
+                        total_files,
+                        processed_files: processed,
+                        current_result: Some(result),
+                        finished: processed == total_files,
+                        batch_progress: true,
+                    },
+                );
             }
-            
+
             // バッチ処理の後に少し待機してUIの更新時間を確保
             thread::sleep(Duration::from_millis(BATCH_DELAY_MS));
         }
-        
+
         // 全ての処理が完了したことを通知
-        let _ = window_clone.emit("organize-progress", OrganizeProgress {
-            total_files,
-            processed_files: processed,
-            current_result: None,
-            finished: true,
-            batch_progress: true,
-        });
+        let _ = window_clone.emit(
+            "organize-progress",
+            OrganizeProgress {
+                total_files,
+                processed_files: processed,
+                current_result: None,
+                finished: true,
+                batch_progress: true,
+            },
+        );
     });
-    
+
     // 処理が別スレッドで実行されるため、即座に空の結果を返す
     Ok(Vec::new())
 }
@@ -626,6 +828,50 @@ fn organize_files_async(
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+// ファイルのパーミッションを変更する関数
+#[tauri::command]
+fn change_file_permissions(file_path: String, mode: u32) -> Result<(), String> {
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err("ファイルが存在しません".to_string());
+    }
+
+    #[cfg(unix)]
+    {
+        // Unixシステム（macOS、Linux）でのファイルパーミッション変更
+        let metadata = fs::metadata(path).map_err(|e| format!("メタデータの取得に失敗: {}", e))?;
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(mode);
+        fs::set_permissions(path, permissions)
+            .map_err(|e| format!("パーミッションの変更に失敗: {}", e))?;
+        Ok(())
+    }
+
+    #[cfg(not(unix))]
+    {
+        // Windowsではパーミッションの仕組みが異なるため、別の方法が必要
+        // 読み取り専用属性の設定/解除などが考えられる
+        if mode & 0o200 != 0 {
+            // 書き込み権限を付与（読み取り専用を解除）
+            let metadata =
+                fs::metadata(path).map_err(|e| format!("メタデータの取得に失敗: {}", e))?;
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(false);
+            fs::set_permissions(path, permissions)
+                .map_err(|e| format!("パーミッションの変更に失敗: {}", e))?;
+        } else {
+            // 書き込み権限を削除（読み取り専用に設定）
+            let metadata =
+                fs::metadata(path).map_err(|e| format!("メタデータの取得に失敗: {}", e))?;
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(true);
+            fs::set_permissions(path, permissions)
+                .map_err(|e| format!("パーミッションの変更に失敗: {}", e))?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -646,7 +892,8 @@ pub fn run() {
             cancel_processing,
             add_output_folder,
             set_input_folder,
-            load_files_from_input_folder
+            load_files_from_input_folder,
+            change_file_permissions
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
