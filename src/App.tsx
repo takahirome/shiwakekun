@@ -646,7 +646,7 @@ function App() {
               {isProcessing && (
                 <Box mb="lg">
                   <Group mb="xs" justify="space-between">
-                    <Text>
+                    <Text style={{ color: "#000" }}>
                       処理中... {progress?.processed_files || 0} /{" "}
                       {progress?.total_files || 0}
                     </Text>
@@ -679,12 +679,12 @@ function App() {
                     <Card key={index} withBorder shadow="xs" p="sm">
                       <Flex justify="space-between" align="center">
                         <Box style={{ flex: 1, overflow: "hidden" }}>
-                          <Text truncate>
+                          <Text truncate style={{ color: "#000" }}>
                             {result.file_path.split("/").pop()}
                           </Text>
                           <Text
                             size="xs"
-                            c="dimmed"
+                            style={{ color: "#000" }}
                             truncate
                             title={result.file_path}
                           >
@@ -703,7 +703,7 @@ function App() {
                   ))}
                 </Stack>
               ) : (
-                <Text ta="center" c="dimmed">
+                <Text ta="center" style={{ color: "#000" }}>
                   まだ処理結果はありません
                 </Text>
               )}
@@ -963,18 +963,18 @@ function App() {
           >
             <Tabs.List grow>
               <Tabs.Tab
-                value="files"
-                leftSection={<IconFileUpload size={16} />}
-                style={{ color: "#000" }}
-              >
-                ファイル
-              </Tabs.Tab>
-              <Tabs.Tab
                 value="folders"
                 leftSection={<IconFolderOpen size={16} />}
                 style={{ color: "#000" }}
               >
                 フォルダ
+              </Tabs.Tab>
+              <Tabs.Tab
+                value="files"
+                leftSection={<IconFileUpload size={16} />}
+                style={{ color: "#000" }}
+              >
+                ファイル
               </Tabs.Tab>
               <Tabs.Tab
                 value="results"
