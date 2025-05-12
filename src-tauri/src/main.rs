@@ -16,8 +16,15 @@ fn move_file(source_path: String, dest_path: String) -> Result<(), String> {
 }
 
 fn main() {
-    // コマンドを登録して実行
-    tauri_app_lib::Builder::default()
-        .invoke_handler(tauri::generate_handler![move_file])
-        .run()
+    // Tauriアプリケーションを実行
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_shell::init())
+        .setup(|_app| Ok(()))
+        .invoke_handler(tauri::generate_handler![move_file]);
+
+    #[cfg(desktop)]
+    app.run(tauri::generate_context!())
+        .expect("アプリの実行中にエラーが発生しました");
 }

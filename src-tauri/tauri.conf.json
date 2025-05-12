@@ -24,7 +24,8 @@
     "security": {
       "csp": null
     },
-    "macOSPrivateApi": true
+    "macOSPrivateApi": true,
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
@@ -40,36 +41,20 @@
   "plugins": {
     "dialog": null,
     "fs": {
-      "requireLiteralLeadingDot": false
+      "requireLiteralLeadingDot": false,
+      "scope": {
+        "allow": ["**"],
+        "deny": []
+      }
+    },
+    "shell": {
+      "scope": {
+        "execute": ["chmod", "xattr"]
+      },
+      "open": true
     },
     "macos": {
       "permissions": ["documents", "desktop", "downloads", "removableVolumes"]
     }
-  },
-  "tauri": {
-    "allowlist": {
-      "fs": {
-        "all": true,
-        "readFile": true,
-        "writeFile": true,
-        "readDir": true,
-        "copyFile": true,
-        "createDir": true,
-        "removeDir": true,
-        "removeFile": true,
-        "renameFile": true,
-        "exists": true
-      },
-      "shell": {
-        "all": false,
-        "execute": true,
-        "sidecar": false,
-        "open": true
-      }
-    },
-    "bundle": {
-      // ... existing code ...
-    },
-    "commands": ["move_file"]
   }
 }
