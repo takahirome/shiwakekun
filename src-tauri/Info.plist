@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>音声入力のためにマイクへのアクセスが必要です</string>
+    <key>NSCameraUsageDescription</key>
+    <string>ビデオ通話のためにカメラへのアクセスが必要です</string>
+    <key>NSFileProviderDomainUsageDescription</key>
+    <string>ファイルの移動と削除のためにファイルシステムへのアクセスが必要です</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>ファイルの整理のためにドキュメントフォルダへのアクセスが必要です</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>ファイルの整理のためにダウンロードフォルダへのアクセスが必要です</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>ファイルの整理のためにデスクトップフォルダへのアクセスが必要です</string>
+</dict>
+</plist> 
