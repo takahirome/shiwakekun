@@ -7,6 +7,7 @@ import {
   Button,
   Box,
   Text,
+  Tabs,
 } from "@mantine/core";
 import {
   IconFileUpload,
@@ -14,6 +15,7 @@ import {
   IconFileImport,
 } from "@tabler/icons-react";
 import { RefObject } from "react";
+import { FileOrganizer } from "./FileOrganizer";
 
 interface FilesTabProps {
   dropZoneRef: RefObject<HTMLDivElement>;
@@ -102,6 +104,31 @@ export function FilesTab({
           {isProcessing ? "処理中..." : "ファイルを整理する"}
         </Button>
       </Group>
+
+      <Tabs defaultValue="files">
+        <Tabs.List>
+          <Tabs.Tab value="files">標準ファイル選択</Tabs.Tab>
+          <Tabs.Tab value="advanced">権限修正機能付き</Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="files">
+          <Box pt="xs">
+            {/* 既存のファイル選択UI */}
+            {/* ... existing code ... */}
+          </Box>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="advanced">
+          <Box pt="xs">
+            <FileOrganizer
+              onSuccess={() => {
+                // ファイル移動成功後の処理
+                // 必要に応じてファイル一覧を更新するなど
+              }}
+            />
+          </Box>
+        </Tabs.Panel>
+      </Tabs>
     </Container>
   );
 }

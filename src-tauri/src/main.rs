@@ -5,11 +5,7 @@ mod file_utils;
 use file_utils::{fix_file_permissions, safe_move_file};
 use std::path::Path;
 
-fn main() {
-    tauri_app_lib::run()
-}
-
-// ファイル移動関数の例（既存のコードに合わせて調整してください）
+// ファイル移動関数
 #[tauri::command]
 fn move_file(source_path: String, dest_path: String) -> Result<(), String> {
     let source = Path::new(&source_path);
@@ -17,4 +13,11 @@ fn move_file(source_path: String, dest_path: String) -> Result<(), String> {
 
     // 安全なファイル移動関数を使用
     safe_move_file(source, destination).map_err(|e| format!("ファイル移動エラー: {}", e))
+}
+
+fn main() {
+    // コマンドを登録して実行
+    tauri_app_lib::Builder::default()
+        .invoke_handler(tauri::generate_handler![move_file])
+        .run()
 }
