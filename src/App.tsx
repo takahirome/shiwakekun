@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { platform } from "@tauri-apps/api/os";
 import "./App.css";
 import {
   AppShell,
@@ -21,7 +20,7 @@ import {
 } from "@tabler/icons-react";
 
 // 型定義のインポート
-import { TabType, OrganizeProgress, Config } from "./types";
+import { TabType, OrganizeProgress } from "./types";
 
 // フックのインポート
 import { useConfig } from "./hooks/useConfig";
@@ -36,6 +35,9 @@ import { ResultsTab } from "./components/ResultsTab";
 import { SettingsTab } from "./components/SettingsTab";
 import { PermissionsTab } from "./components/PermissionsTab";
 
+/**
+ * アプリケーションのメインコンポーネント
+ */
 function App() {
   // フックの使用
   const {
@@ -80,151 +82,177 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabType>("folders");
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
-  // イベントリスナーの設定
+  /**
+   * イベントリスナーを設定
+   */
   useEffect(() => {
-    // イベントリスナーを設定
-    const unlistenFn = listen("organize-progress", (event) => {
-      const progress = event.payload as OrganizeProgress;
-      setProgress(progress);
+    // ファイル整理進捗のイベントリスナー
+    const setupOrganizeProgressListener = async () => {
+      const unlistenFn = await listen("organize-progress", (event) => {
+        const progress = event.payload as OrganizeProgress;
+        setProgress(progress);
 
-      if (progress.current_result) {
-        setResults((prevResults) => [...prevResults, progress.current_result!]);
-      }
-
-      if (progress.finished) {
-        setIsProcessing(false);
-        // 処理完了時に結果タブに切り替える
-        setActiveTab("results");
-      }
-    });
-
-    // ファイルドロップイベントリスナーを設定
-    const fileDropListener = listen<{ paths: string[] }>(
-      "tauri://drag-drop",
-      (event) => {
-        const files = event.payload.paths;
-        if (files && files.length > 0) {
-          setSelectedFiles(files);
-          setIsDragging(false);
+        if (progress.current_result) {
+          setResults((prevResults) => [
+            ...prevResults,
+            progress.current_result!,
+          ]);
         }
-      }
-    );
 
-    // ドラッグエンターイベントリスナー
-    const dragEnterListener = listen("tauri://drag-enter", () => {
-      setIsDragging(true);
+        if (progress.finished) {
+          setIsProcessing(false);
+          setActiveTab("results");
+        }
+      });
+      return unlistenFn;
+    };
+
+    // ドラッグ&ドロップ関連のイベントリスナー
+    const setupDragDropListeners = async () => {
+      const fileDropListener = await listen<{ paths: string[] }>(
+        "tauri://drag-drop",
+        (event) => {
+          const files = event.payload.paths;
+          if (files && files.length > 0) {
+            setSelectedFiles(files);
+            setIsDragging(false);
+          }
+        }
+      );
+
+      const dragEnterListener = await listen("tauri://drag-enter", () => {
+        setIsDragging(true);
+      });
+
+      const dragLeaveListener = await listen("tauri://drag-leave", () => {
+        setIsDragging(false);
+      });
+
+      return { fileDropListener, dragEnterListener, dragLeaveListener };
+    };
+
+    // イベントリスナーのセットアップと解除
+    let organizeListener: (() => void) | undefined;
+    let dragDropListeners:
+      | {
+          fileDropListener: () => void;
+          dragEnterListener: () => void;
+          dragLeaveListener: () => void;
+        }
+      | undefined;
+
+    setupOrganizeProgressListener().then((unlisten) => {
+      organizeListener = unlisten;
     });
 
-    // ドラッグリーブイベントリスナー
-    const dragLeaveListener = listen("tauri://drag-leave", () => {
-      setIsDragging(false);
+    setupDragDropListeners().then((listeners) => {
+      dragDropListeners = listeners;
     });
 
     return () => {
-      unlistenFn.then((unlisten) => unlisten());
-      fileDropListener.then((unlisten) => unlisten());
-      dragEnterListener.then((unlisten) => unlisten());
-      dragLeaveListener.then((unlisten) => unlisten());
+      if (organizeListener) organizeListener();
+      if (dragDropListeners) {
+        dragDropListeners.fileDropListener();
+        dragDropListeners.dragEnterListener();
+        dragDropListeners.dragLeaveListener();
+      }
     };
   }, []);
 
-  // 出力フォルダの選択処理
+  /**
+   * 出力フォルダの選択処理
+   */
   const handleSelectOutputFolder = async () => {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const folder = await open({ directory: true });
 
-      if (folder) {
-        // 選択されたフォルダが配列の場合は最初の要素を使用
-        const selectedFolder = Array.isArray(folder) ? folder[0] : folder;
-        setSelectedOutputFolder(selectedFolder);
-      }
+      if (!folder) return;
+
+      // 選択されたフォルダが配列の場合は最初の要素を使用
+      const selectedFolder = Array.isArray(folder) ? folder[0] : folder;
+      setSelectedOutputFolder(selectedFolder);
     } catch (error) {
       console.error("出力フォルダ選択エラー:", error);
     }
   };
 
-  // ファイルのロード処理
+  /**
+   * 入力フォルダからファイルをロード
+   */
   const handleLoadFilesFromInputFolder = async () => {
     const files = await loadFilesFromInputFolder(config);
     if (files && files.length > 0) {
-      // ファイルが読み込まれたらファイル選択タブに切り替える
       setActiveTab("files");
     }
   };
 
-  // 整理処理の実行
+  /**
+   * ファイル整理処理の実行
+   */
   const handleOrganizeFiles = async () => {
     await organizeFiles(config, setActiveTab);
   };
 
-  // タブコンテンツのレンダリング
+  /**
+   * タブコンテンツのレンダリング
+   */
   const renderTabContent = () => {
-    switch (activeTab) {
-      case "files":
-        return (
-          <FilesTab
-            dropZoneRef={dropZoneRef}
-            isDragging={isDragging}
-            selectFiles={selectFiles}
-            selectOutputFolder={handleSelectOutputFolder}
-            selectedOutputFolder={selectedOutputFolder}
-            selectedFiles={selectedFiles}
-            organizeFiles={handleOrganizeFiles}
-            isProcessing={isProcessing}
-          />
-        );
+    const tabComponentMap: Record<TabType, JSX.Element | null> = {
+      files: (
+        <FilesTab
+          dropZoneRef={dropZoneRef}
+          isDragging={isDragging}
+          selectFiles={selectFiles}
+          selectOutputFolder={handleSelectOutputFolder}
+          selectedOutputFolder={selectedOutputFolder}
+          selectedFiles={selectedFiles}
+          organizeFiles={handleOrganizeFiles}
+          isProcessing={isProcessing}
+        />
+      ),
+      folders: (
+        <FoldersTab
+          config={config}
+          selectInputFolder={selectInputFolder}
+          isRecursive={isRecursive}
+          setIsRecursive={setIsRecursive}
+          loadFilesFromInputFolder={handleLoadFilesFromInputFolder}
+        />
+      ),
+      settings: (
+        <SettingsTab
+          config={config}
+          newCategory={newCategory}
+          setNewCategory={setNewCategory}
+          newExtensions={newExtensions}
+          setNewExtensions={setNewExtensions}
+          editCategory={editCategory}
+          setEditCategory={setEditCategory}
+          addCategory={addCategory}
+          updateCategory={updateCategory}
+          deleteCategory={deleteCategory}
+          startEditCategory={startEditCategory}
+        />
+      ),
+      results: (
+        <ResultsTab
+          isProcessing={isProcessing}
+          progress={progress}
+          cancelProcessing={cancelProcessing}
+          results={results}
+        />
+      ),
+      permissions: (
+        <PermissionsTab
+          permissionStatus={permissionStatus}
+          checkPermissions={checkPermissions}
+          requestPermission={requestPermission}
+        />
+      ),
+    };
 
-      case "folders":
-        return (
-          <FoldersTab
-            config={config}
-            selectInputFolder={selectInputFolder}
-            isRecursive={isRecursive}
-            setIsRecursive={setIsRecursive}
-            loadFilesFromInputFolder={handleLoadFilesFromInputFolder}
-          />
-        );
-
-      case "settings":
-        return (
-          <SettingsTab
-            config={config}
-            newCategory={newCategory}
-            setNewCategory={setNewCategory}
-            newExtensions={newExtensions}
-            setNewExtensions={setNewExtensions}
-            editCategory={editCategory}
-            setEditCategory={setEditCategory}
-            addCategory={addCategory}
-            updateCategory={updateCategory}
-            deleteCategory={deleteCategory}
-            startEditCategory={startEditCategory}
-          />
-        );
-
-      case "results":
-        return (
-          <ResultsTab
-            isProcessing={isProcessing}
-            progress={progress}
-            cancelProcessing={cancelProcessing}
-            results={results}
-          />
-        );
-
-      case "permissions":
-        return (
-          <PermissionsTab
-            permissionStatus={permissionStatus}
-            checkPermissions={checkPermissions}
-            requestPermission={requestPermission}
-          />
-        );
-
-      default:
-        return null;
-    }
+    return tabComponentMap[activeTab] || null;
   };
 
   // 画面全体のレンダリング
@@ -238,7 +266,7 @@ function App() {
 
       <AppShell.Main>
         <Container>
-          {/* 出力フォルダ選択UIをタブの上に移動 */}
+          {/* 出力フォルダ選択UI */}
           <Box mb="md">
             <Group>
               <Button

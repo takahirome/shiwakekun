@@ -3,7 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FileResult, OrganizeProgress, Config, TabType } from "../types";
 
+/**
+ * ファイル操作に関するカスタムフック
+ */
 export function useFiles() {
+  // ファイル関連の状態
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [selectedOutputFolder, setSelectedOutputFolder] = useState<string>("");
   const [results, setResults] = useState<FileResult[]>([]);
@@ -11,12 +15,17 @@ export function useFiles() {
   const [progress, setProgress] = useState<OrganizeProgress | null>(null);
   const [isRecursive, setIsRecursive] = useState(true);
 
+  /**
+   * ファイル選択ダイアログを表示して、ファイルを選択する
+   */
   async function selectFiles() {
     try {
       const selected = await open({ multiple: true });
+      if (!selected) return;
+      
       if (Array.isArray(selected)) {
         setSelectedFiles(selected);
-      } else if (selected !== null) {
+      } else {
         setSelectedFiles([selected]);
       }
     } catch (error) {
@@ -24,10 +33,15 @@ export function useFiles() {
     }
   }
 
+  /**
+   * 入力フォルダからファイルを読み込む
+   * @param config アプリケーション設定
+   * @returns 読み込まれたファイルパスの配列
+   */
   async function loadFilesFromInputFolder(config: Config | null) {
-    if (!config || !config.input_folder) {
+    if (!config?.input_folder) {
       alert("入力フォルダが設定されていません");
-      return;
+      return [];
     }
 
     try {
@@ -44,12 +58,19 @@ export function useFiles() {
     }
   }
 
+  /**
+   * ファイルを整理する
+   * @param config アプリケーション設定
+   * @param onComplete 完了時のコールバック
+   */
   async function organizeFiles(config: Config | null, onComplete?: (tab: TabType) => void) {
+    // バリデーション
     if (!config || selectedFiles.length === 0 || !selectedOutputFolder) {
       alert("ファイルと出力フォルダを選択してください");
       return;
     }
 
+    // 状態の初期化
     setIsProcessing(true);
     setResults([]);
     setProgress({
@@ -58,6 +79,7 @@ export function useFiles() {
       finished: false,
     });
     
+    // 結果タブへの切り替え
     if (onComplete) {
       onComplete("results");
     }
@@ -76,6 +98,9 @@ export function useFiles() {
     }
   }
 
+  /**
+   * 処理をキャンセルする
+   */
   async function cancelProcessing() {
     try {
       await invoke("cancel_processing");
@@ -84,7 +109,13 @@ export function useFiles() {
     }
   }
 
-  async function changeFilePermissions(filePath: string, writable: boolean = true) {
+  /**
+   * ファイルのパーミッションを変更する
+   * @param filePath ファイルパス
+   * @param writable 書き込み可能にするかどうか
+   * @returns 成功したかどうか
+   */
+  async function changeFilePermissions(filePath: string, writable = true) {
     try {
       // Unix系のパーミッション値（8進数）
       // 0o644: 自分は読み書き可能、グループとその他は読み取りのみ
@@ -104,6 +135,7 @@ export function useFiles() {
   }
 
   return {
+    // 状態
     selectedFiles,
     setSelectedFiles,
     selectedOutputFolder,
@@ -116,6 +148,8 @@ export function useFiles() {
     setProgress,
     isRecursive,
     setIsRecursive,
+    
+    // アクション
     selectFiles,
     loadFilesFromInputFolder,
     organizeFiles,

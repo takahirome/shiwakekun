@@ -7,16 +7,23 @@ import {
 } from "tauri-plugin-macos-permissions-api";
 import { PermissionStatus } from "../types";
 
+/**
+ * macOSのパーミッション管理に関するカスタムフック
+ */
 export function usePermissions() {
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>({
     accessibility: "未確認",
     fullDiskAccess: "未確認",
   });
 
+  // 初期化時にパーミッションを確認
   useEffect(() => {
     checkPermissions();
   }, []);
 
+  /**
+   * 現在のパーミッション状態を確認して更新
+   */
   async function checkPermissions() {
     try {
       const accessibility = await checkAccessibilityPermission();
@@ -31,9 +38,11 @@ export function usePermissions() {
     }
   }
 
-  async function requestPermission(
-    type: "accessibility" | "fullDiskAccess"
-  ) {
+  /**
+   * 特定のパーミッションをリクエスト
+   * @param type パーミッションの種類
+   */
+  async function requestPermission(type: "accessibility" | "fullDiskAccess") {
     try {
       switch (type) {
         case "accessibility":
