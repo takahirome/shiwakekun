@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { Box, Button, TextInput, Group, Text, Alert } from "@mantine/core";
-import { IconAlertCircle, IconUpload } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconUpload,
+  IconFolderOpen,
+} from "@tabler/icons-react";
 
 interface FileOrganizerProps {
   onSuccess?: () => void;
@@ -13,6 +18,30 @@ export function FileOrganizer({ onSuccess }: FileOrganizerProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleSelectSourceFile = async () => {
+    try {
+      const selected = await open({ multiple: false });
+      if (selected) {
+        setSourceFile(selected as string);
+      }
+    } catch (error) {
+      console.error("ファイル選択エラー:", error);
+      setError(`ファイル選択エラー: ${error}`);
+    }
+  };
+
+  const handleSelectDestFolder = async () => {
+    try {
+      const selected = await open({ directory: true });
+      if (selected) {
+        setDestFolder(selected as string);
+      }
+    } catch (error) {
+      console.error("フォルダ選択エラー:", error);
+      setError(`フォルダ選択エラー: ${error}`);
+    }
+  };
 
   const handleMoveFile = async () => {
     if (!sourceFile || !destFolder) {
@@ -52,23 +81,41 @@ export function FileOrganizer({ onSuccess }: FileOrganizerProps) {
         ファイル移動（権限修正機能付き）
       </Text>
 
-      <TextInput
-        label="ソースファイル"
-        placeholder="/path/to/source/file.jpg"
-        value={sourceFile}
-        onChange={(e) => setSourceFile(e.target.value)}
-        mb="sm"
-        required
-      />
+      <Group mb="sm" grow>
+        <TextInput
+          label="ソースファイル"
+          placeholder="/path/to/source/file.jpg"
+          value={sourceFile}
+          onChange={(e) => setSourceFile(e.target.value)}
+          required
+          style={{ flex: 1 }}
+        />
+        <Button
+          leftIcon={<IconFolderOpen size={16} />}
+          onClick={handleSelectSourceFile}
+          style={{ marginTop: "1.5rem" }}
+        >
+          ファイルを選択
+        </Button>
+      </Group>
 
-      <TextInput
-        label="保存先フォルダ"
-        placeholder="/path/to/destination/folder"
-        value={destFolder}
-        onChange={(e) => setDestFolder(e.target.value)}
-        mb="md"
-        required
-      />
+      <Group mb="md" grow>
+        <TextInput
+          label="保存先フォルダ"
+          placeholder="/path/to/destination/folder"
+          value={destFolder}
+          onChange={(e) => setDestFolder(e.target.value)}
+          required
+          style={{ flex: 1 }}
+        />
+        <Button
+          leftIcon={<IconFolderOpen size={16} />}
+          onClick={handleSelectDestFolder}
+          style={{ marginTop: "1.5rem" }}
+        >
+          フォルダを選択
+        </Button>
+      </Group>
 
       <Group position="center">
         <Button
