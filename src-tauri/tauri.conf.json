@@ -41,16 +41,9 @@
   "plugins": {
     "dialog": null,
     "fs": {
-      "requireLiteralLeadingDot": false,
-      "scope": {
-        "allow": ["**"],
-        "deny": []
-      }
+      "requireLiteralLeadingDot": false
     },
     "shell": {
-      "scope": {
-        "execute": ["chmod", "xattr"]
-      },
       "open": true
     },
     "macos": {

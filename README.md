@@ -1,14 +1,19 @@
-# Tauri + React + TypeScript
+# 仕分けくん - ファイル整理アプリケーション
 
-このテンプレートは、Tauri、React、TypeScript と Vite を使用した開発をスタートするのに役立ちます。
+このアプリケーションは、Tauri、React、TypeScript を使用したファイル整理ユーティリティです。特に macOS でのファイル権限問題を自動的に解決する機能を備えています。
 
 ## プロジェクト概要
 
-このプロジェクトは、Tauri を使用したクロスプラットフォームデスクトップアプリケーションです。フロントエンドには React と TypeScript を使用し、スタイリングには Tailwind CSS を採用しています。
+「仕分けくん」は、ファイル整理作業を簡素化するためのデスクトップアプリケーションです。フロントエンドには React と TypeScript を使用し、スタイリングには Mantine UI を採用しています。Tauri フレームワークを使用することで、軽量かつネイティブのパフォーマンスを実現しています。
 
-## 推奨開発環境
+## 主な機能
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- **標準ファイル整理**: ドラッグ＆ドロップでファイル選択、カテゴリ別に自動整理
+- **権限自動修正機能**: ファイル移動時の権限エラーを自動的に解決
+  - 書き込み権限の自動付与
+  - 親ディレクトリの権限修正
+  - macOS 固有の拡張属性（com.apple.provenance）の処理
+- **クロスプラットフォーム対応**: Windows、macOS、Linux で動作
 
 ## セットアップ手順
 
@@ -22,27 +27,39 @@ cd tauri-app
 2. 依存関係をインストール:
 
 ```bash
-npm install
+pnpm install
 ```
 
 3. 開発サーバーを起動:
 
 ```bash
-npm run tauri dev
+pnpm tauri dev
 ```
 
 4. アプリケーションをビルド:
 
 ```bash
-npm run tauri build
+pnpm tauri build
 ```
 
-## 主な機能
+## 権限修正機能について
 
-- クロスプラットフォーム対応（Windows、macOS、Linux）
-- モダンな UI/UX 設計
-- ローカルデータストレージ
-- システム通知の統合
+このアプリケーションは、特に macOS で発生しがちなファイル移動時の権限エラー問題を解決します：
+
+1. **読み取り専用ファイルの問題**: ファイルに書き込み権限がない場合に自動的に付与
+2. **ディレクトリ権限の問題**: 親ディレクトリに書き込み権限がない場合に自動的に付与
+3. **拡張属性の問題**: macOS の拡張属性（com.apple.provenance）が原因で削除できない問題を解決
+
+### 使用方法
+
+1. 「標準ファイル選択」タブでは通常のファイル整理機能が使用できます
+2. 「権限修正機能付き」タブでは、権限問題が発生した場合に自動修正しながらファイルを移動します
+
+## 技術スタック
+
+- **フロントエンド**: React, TypeScript, Mantine UI
+- **バックエンド**: Rust（Tauri）
+- **ビルドツール**: Vite
 
 ## ライセンス
 

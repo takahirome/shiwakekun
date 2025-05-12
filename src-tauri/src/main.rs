@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod file_utils;
-use file_utils::{fix_file_permissions, safe_move_file};
+use file_utils::safe_move_file;
 use std::path::Path;
 
 // ファイル移動関数

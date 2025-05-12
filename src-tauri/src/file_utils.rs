@@ -1,6 +1,6 @@
 use std::fs;
-use std::io::{self, Error, ErrorKind};
-use std::path::{Path, PathBuf};
+use std::io::{self};
+use std::path::Path;
 use std::process::Command;
 
 /// ファイルの権限を修正する関数
